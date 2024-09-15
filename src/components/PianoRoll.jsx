@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 
@@ -73,7 +74,11 @@ function calculateZoomSettings(zoomX) {
   return [subdivision, barStep];
 }
 
-const PianoRoll = () => {
+const PianoRoll = (props) => {
+  let beats_per_minute = props.BPM;
+  let playbackPosition = props.playbackPosition;
+  let setPlaybackPosition = props.setPlaybackPosition;
+
   const callModAPI = useAction(api.functions.modAPI);
 
   // State variables for zoom and scroll positions
@@ -141,7 +146,6 @@ const PianoRoll = () => {
   });
 
   // State for playback bar
-  const [playbackPosition, setPlaybackPosition] = useState(0); // New state variable
   const [isDraggingPlayback, setIsDraggingPlayback] = useState(false); // New state variable
 
   //State for virtual cursor
@@ -1571,7 +1575,7 @@ const PianoRoll = () => {
                   setIsChatLoading(true);
                   const time_based = MIDIToTimeBased(
                     notes.filter((note) => selectedNotes.includes(note.id)),
-                    120
+                    beats_per_minute
                   );
                   callModAPI({
                     music: time_based,
@@ -1580,7 +1584,7 @@ const PianoRoll = () => {
                     setNotes({
                       midi: [
                         ...notes,
-                        ...TimeBasedToMIDI(JSON.parse(res), 120),
+                        ...TimeBasedToMIDI(JSON.parse(res), beats_per_minute),
                       ],
                       id: convexNotesID,
                     });

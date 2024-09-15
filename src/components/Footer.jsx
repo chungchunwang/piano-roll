@@ -7,7 +7,14 @@ import { parseMidiFile } from "./parse-midi";
 import * as Tone from "tone";
 import { Midi } from "@tonejs/midi";
 
-export default function Footer({ tempo, setTempo, volume, setVolume }) {
+export default function Footer({
+  tempo,
+  setTempo,
+  volume,
+  setVolume,
+  setPlayback,
+  playback,
+}) {
   const setNotes = useMutation(api.tasks.setMIDI);
   const convexNotesID = useQuery(api.tasks.getMIDIID, { file: "example" });
   const notes = useQuery(api.tasks.getMIDI, { id: convexNotesID });
@@ -91,22 +98,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
     //   fs.writeFileSync("output.mid", new Buffer(midi.toArray()));
   }
 
-  const playAutoPiano = () => {
-    const now = Tone.now();
-
-    // Trigger C4, E4, G4 to simulate a chord
-    let synth = new Tone.PolySynth(Tone.Synth).toDestination();
-    notes.map((note) => {
-      synth.triggerAttackRelease(
-        Tone.Frequency(note.pitch, "midi").toNote(),
-        note.duration,
-        now + note.start
-      );
-    });
-    // synth.triggerAttackRelease("C4", "8n", now);
-    // synth.triggerAttackRelease("E4", "8n", now + 0.5);
-    // synth.triggerAttackRelease("G4", "8n", now + 1.0);
-  };
+  
   return (
     <div className="flex items-center justify-between bg-gray-700 p-4 text-white">
       {/* Left Controls */}
@@ -115,9 +107,9 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           iconSrc="/assets/icons/play.png"
           play
           button
-          altText="Play"
-          label="Play"
-          onClick={playAutoPiano}
+          altText={playback ? "Play" : "Pause"}
+          label={playback ? "Play" : "Pause"}
+          onClick={() => setPlayback((prev) => !prev)}
           customStyle={{
             background: "#60A5FA",
             border: "none",
@@ -129,7 +121,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           button
           altText="Sound"
           label="Sound"
-          onClick={() => console.log("Sound button clicked")}
+          onClick={() => {}}
         />
         <CustomSquircle
           iconSrc="/assets/icons/property.png"
@@ -150,6 +142,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
             min="60"
             max="180"
             value={tempo}
+            disabled={playback}
             onChange={(e) => setTempo(e.target.value)}
             className="w-32 h-2 bg-gray-600 rounded-full appearance-none"
             style={{
