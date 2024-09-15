@@ -193,14 +193,15 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           label="Save"
           onClick={() => console.log("Save button clicked")}
         />
-        <CustomSquircle
-          iconSrc="/assets/icons/export.png"
-          altText="Export"
-          label="Export"
-          onClick={() => handleExport()}
-        />
-
-        <input type="file" accept=".mid" onChange={handleFileUpload} />
+        <div className="w-[80px] h-[80px] flex justify-center items-center overflow-hidden relative">
+          <CustomSquircle
+            iconSrc="/assets/icons/export.png"
+            altText="Export"
+            label="Export"
+            onClick={() => handleExport()}
+          />
+          <input type="file" accept=".mid" onChange={handleFileUpload} className="w-[500px] h-[500px] invisible absolute"/>
+        </div>
       </div>
     </div>
   );
