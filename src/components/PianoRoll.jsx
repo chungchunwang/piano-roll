@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 
 // To whom it may concern, I apologize for this monolith of a file. Unfortuately, it is the fastest way for me to iterate, and desperate hackmit times call for desperate measures. - Yours, Jason Wang
@@ -6,7 +7,12 @@ import Select from "react-select";
 import { useState, useRef, useEffect } from "react";
 import { FaBoltLightning } from "react-icons/fa6";
 import MIDIToTimeBased from "./MIDIToTimeBased";
-import MidiJsonEdit from "./midi-json-edit";
+
+import { useUser } from "@clerk/clerk-react";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { use } from "framer-motion/client";
+import TimeBasedToMIDI from "./TimeBasedToMIDI";
 
 const NUM_MIDI_KEYS = 128; // Total number of MIDI keys
 const KEY_HEIGHT = 20; // Height of each key
@@ -68,6 +74,8 @@ function calculateZoomSettings(zoomX) {
 }
 
 const PianoRoll = () => {
+  const callModAPI = useAction(api.functions.modAPI);
+
   // State variables for zoom and scroll positions
   const [scrollX, setScrollX] = useState(0);
   const [scrollY, setScrollY] = useState(0);
@@ -88,6 +96,8 @@ const PianoRoll = () => {
   const [actionPageOpen, setActionPageOpen] = useState(false);
   const [chatPageOpen, setChatPageOpen] = useState(false);
 
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   // Refs to handle canvas elements
   const gridCanvasRef = useRef(null);
   const pianoCanvasRef = useRef(null);
@@ -95,8 +105,19 @@ const PianoRoll = () => {
   const actionSearchBar = useRef(null);
   const chatBoxBar = useRef(null);
 
+  const { isSignedIn, user, isLoaded } = useUser();
+
   // State to store MIDI notes
-  const [notes, setNotes] = useState([]);
+  const convexNotesID = useQuery(api.tasks.getMIDIID, { file: "example" });
+  const notes = useQuery(api.tasks.getMIDI, { id: convexNotesID });
+  const setNotes = useMutation(api.tasks.setMIDI);
+
+  const cursors = useQuery(api.tasks.getCursors, { id: convexNotesID });
+  const setCursors = useMutation(api.tasks.setCursors);
+
+  const [selectedNotes, setSelectedNotes] = useState([]);
+
+  const [tempDraggingNotes, setTempDraggingNotes] = useState([]);
 
   // State for mouse interaction
   const [isDragging, setIsDragging] = useState(false);
@@ -295,7 +316,19 @@ const PianoRoll = () => {
       }
       if (e.key === "Backspace" || e.key === "Delete") {
         // Delete selected notes
-        setNotes((prevNotes) => prevNotes.filter((note) => !note.selected));
+        console.log("Deleting selected notes");
+        console.log(selectedNotes);
+        console.log(
+          notes.filter(
+            (note) => !selectedNotes.some((snote) => snote === note.id)
+          )
+        );
+        setNotes({
+          midi: notes.filter(
+            (note) => !selectedNotes.some((snote) => snote === note.id)
+          ),
+          id: convexNotesID,
+        });
       }
       if (e.key === "ArrowLeft") {
         // Scroll left
@@ -311,9 +344,11 @@ const PianoRoll = () => {
       }
 
       // Handle Copy (Ctrl+C)
-      if (e.key.toLowerCase() === "c" && isCtrlPressed) {
+      if (notes && e.key.toLowerCase() === "c" && isCtrlPressed) {
         // Copy selected notes
-        const selectedNotes = notes.filter((note) => note.selected);
+        const selectedNotes = notes.filter((note) =>
+          selectedNotes.includes(note.id)
+        );
         if (selectedNotes.length > 0) {
           // Copy the notes, adjust so that the earliest note starts at 0
           const earliestStart = Math.min(
@@ -339,10 +374,11 @@ const PianoRoll = () => {
             selected: true,
           }));
           // Deselect existing notes and add new notes
-          setNotes((prevNotes) => [
-            ...prevNotes.map((note) => ({ ...note, selected: false })),
-            ...newNotes,
-          ]);
+          setSelectedNotes([]);
+          setNotes({
+            midi: [...notes.map((note) => ({ ...note })), ...newNotes],
+            id: convexNotesID,
+          });
         }
       }
     };
@@ -387,6 +423,12 @@ const PianoRoll = () => {
     notes,
     playbackPosition,
     copiedNotes,
+    handleWheel,
+    totalPianoRollWidth,
+    canvasWidth,
+    selectedNotes,
+    setNotes,
+    convexNotesID,
   ]);
 
   // Function to determine grid size based on zoom level
@@ -722,58 +764,95 @@ const PianoRoll = () => {
       ctx.closePath();
       ctx.fill();
     }
+    if (cursors != null)
+      for (const [key, value] of Object.entries(cursors)) {
+        const bookmarkCursorX = value[0] * BEAT_WIDTH * zoomX - scrollX;
+        const bookmarkCursorY = value[1] * KEY_HEIGHT * zoomY - scrollY;
 
-    const bookmarkCursorX =
-      bookmarkCursorPosition.x * BEAT_WIDTH * zoomX - scrollX;
-    const bookmarkCursorY =
-      bookmarkCursorPosition.y * KEY_HEIGHT * zoomY - scrollY;
-
-    if (
-      bookmarkCursorX >= 0 &&
-      bookmarkCursorX <= gridCanvasWidth &&
-      bookmarkCursorY >= 0 &&
-      bookmarkCursorY <= gridCanvasHeight
-    ) {
-      ctx.strokeStyle = "purple";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bookmarkCursorX, bookmarkCursorY);
-      ctx.lineTo(bookmarkCursorX, bookmarkCursorY + KEY_HEIGHT * zoomY);
-      ctx.stroke();
-      ctx.fillStyle = "purple";
-      ctx.beginPath();
-      ctx.moveTo(bookmarkCursorX - 10, bookmarkCursorY - 10);
-      ctx.lineTo(bookmarkCursorX - 10, bookmarkCursorY - 5);
-      ctx.lineTo(bookmarkCursorX - 5, bookmarkCursorY - 5);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Draw MIDI notes
-    notes.forEach((note) => {
-      const x = note.start * BEAT_WIDTH * zoomX - scrollX;
-      const y = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT * zoomY - scrollY;
-      const width = note.duration * BEAT_WIDTH * zoomX;
-      const height = KEY_HEIGHT * zoomY;
-
-      // Only draw notes that are visible
-      if (
-        x + width < 0 ||
-        x > gridCanvasWidth ||
-        y + height < 0 ||
-        y > gridCanvasHeight
-      ) {
-        return;
+        if (
+          bookmarkCursorX >= 0 &&
+          bookmarkCursorX <= gridCanvasWidth &&
+          bookmarkCursorY >= 0 &&
+          bookmarkCursorY <= gridCanvasHeight
+        ) {
+          ctx.fillStyle = "white";
+          ctx.font = "10px Arial";
+          ctx.fillText(key, bookmarkCursorX + 15, bookmarkCursorY - 5);
+          ctx.strokeStyle = "purple";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(bookmarkCursorX, bookmarkCursorY);
+          ctx.lineTo(bookmarkCursorX, bookmarkCursorY + KEY_HEIGHT * zoomY);
+          ctx.stroke();
+          ctx.fillStyle = "purple";
+          ctx.beginPath();
+          ctx.moveTo(bookmarkCursorX + 10, bookmarkCursorY - 10);
+          ctx.lineTo(bookmarkCursorX + 10, bookmarkCursorY - 5);
+          ctx.lineTo(bookmarkCursorX + 5, bookmarkCursorY - 5);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
 
-      ctx.fillStyle = note.selected ? "brown" : "orange";
-      ctx.fillRect(x, y, width, height);
+    // Draw MIDI notes
+    const ids = tempDraggingNotes
+      ? tempDraggingNotes.map((note) => note.id)
+      : [];
+    if (notes)
+      notes.forEach((note) => {
+        if (ids.includes(note.id)) {
+          return;
+        }
+        const x = note.start * BEAT_WIDTH * zoomX - scrollX;
+        const y =
+          (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT * zoomY - scrollY;
+        const width = note.duration * BEAT_WIDTH * zoomX;
+        const height = KEY_HEIGHT * zoomY;
 
-      // Draw note border
-      ctx.strokeStyle = "black";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, width, height);
-    });
+        // Only draw notes that are visible
+        if (
+          x + width < 0 ||
+          x > gridCanvasWidth ||
+          y + height < 0 ||
+          y > gridCanvasHeight
+        ) {
+          return;
+        }
+
+        ctx.fillStyle = selectedNotes.includes(note.id) ? "brown" : "orange";
+        ctx.fillRect(x, y, width, height);
+
+        // Draw note border
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+      });
+    if (tempDraggingNotes)
+      tempDraggingNotes.forEach((note) => {
+        const x = note.start * BEAT_WIDTH * zoomX - scrollX;
+        const y =
+          (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT * zoomY - scrollY;
+        const width = note.duration * BEAT_WIDTH * zoomX;
+        const height = KEY_HEIGHT * zoomY;
+
+        // Only draw notes that are visible
+        if (
+          x + width < 0 ||
+          x > gridCanvasWidth ||
+          y + height < 0 ||
+          y > gridCanvasHeight
+        ) {
+          return;
+        }
+
+        ctx.fillStyle = selectedNotes.includes(note.id) ? "brown" : "orange";
+        ctx.fillRect(x, y, width, height);
+
+        // Draw note border
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+      });
 
     // Draw selection box if active
     if (isSelecting) {
@@ -826,7 +905,7 @@ const PianoRoll = () => {
     setScrollX((prevScrollX) =>
       Math.max(0, Math.min(prevScrollX, newMaxScrollX))
     );
-  }, [zoomX, zoomY]);
+  }, [canvasHeight, canvasWidth, zoomX, zoomY]);
 
   // Redraw piano keys, grid, and time ruler when zoom, scroll, or playback position changes
   useEffect(() => {
@@ -843,6 +922,9 @@ const PianoRoll = () => {
     selectionBox,
     playbackPosition,
     virtualCursorPosition,
+    drawPianoKeys,
+    drawGrid,
+    drawTimeRuler,
   ]);
 
   // Mouse event handlers for adding and manipulating notes
@@ -867,55 +949,50 @@ const PianoRoll = () => {
     const closestX = Math.round(worldX * subdivision) / subdivision;
     const closestY = Math.round(worldY);
     setBookmarkCursorPosition({ x: closestX, y: closestY });
+    setCursors({
+      id: convexNotesID,
+      cursors: { [user.fullName]: [closestX, closestY] },
+    });
 
     // Check if clicked on an existing note
     let clickedNote = null;
-    notes.forEach((note) => {
-      const noteX = note.start * BEAT_WIDTH;
-      const noteY = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT;
-      const noteWidth = note.duration * BEAT_WIDTH;
-      const noteHeight = KEY_HEIGHT;
-
-      if (
-        worldX * BEAT_WIDTH >= noteX &&
-        worldX * BEAT_WIDTH <= noteX + noteWidth &&
-        worldY * KEY_HEIGHT >= noteY &&
-        worldY * KEY_HEIGHT <= noteY + noteHeight
-      ) {
-        clickedNote = note;
-      }
-    });
-
+    if (notes)
+      notes.forEach((note) => {
+        const noteX = note.start * BEAT_WIDTH;
+        const noteY = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT;
+        const noteWidth = note.duration * BEAT_WIDTH;
+        const noteHeight = KEY_HEIGHT;
+        if (
+          worldX * BEAT_WIDTH >= noteX &&
+          worldX * BEAT_WIDTH <= noteX + noteWidth &&
+          worldY * KEY_HEIGHT >= noteY &&
+          worldY * KEY_HEIGHT <= noteY + noteHeight
+        ) {
+          clickedNote = note;
+        }
+      });
     if (clickedNote) {
       if (e.button === 2) {
         // Right-click to delete the note
-        setNotes((prevNotes) =>
-          prevNotes.filter((note) => note.id !== clickedNote.id)
-        );
+        setNotes({
+          midi: notes.filter((note) => note.id !== clickedNote.id),
+          id: convexNotesID,
+        });
         return;
       }
-
       if (isShiftPressed) {
         // Shift-click to toggle selection
-        setNotes((prevNotes) =>
-          prevNotes.map((note) =>
-            note.id === clickedNote.id
-              ? { ...note, selected: !note.selected }
-              : note
-          )
-        );
+        if (selectedNotes.some((id) => id === clickedNote.id)) {
+          setSelectedNotes(selectedNotes.filter((id) => id !== clickedNote.id));
+        } else {
+          setSelectedNotes([...selectedNotes, clickedNote.id]);
+        }
       } else {
-        if (clickedNote.selected) {
+        if (selectedNotes.includes(clickedNote.id)) {
           // Note is already selected; do not change selection
         } else {
-          // Select the clicked note and deselect others
-          setNotes((prevNotes) =>
-            prevNotes.map((note) =>
-              note.id === clickedNote.id
-                ? { ...note, selected: true }
-                : { ...note, selected: false }
-            )
-          );
+          console.log("Setting selected notes");
+          setSelectedNotes([...selectedNotes, clickedNote.id]);
         }
       }
 
@@ -945,8 +1022,10 @@ const PianoRoll = () => {
       } else {
         setDraggingType("move");
         // Store initial state of all selected notes
-        const selectedNotes = notes.filter((note) => note.selected);
-        setInitialNotesState(selectedNotes.map((note) => ({ ...note })));
+        const selNotes = notes.filter((note) =>
+          selectedNotes.includes(note.id)
+        );
+        setInitialNotesState(selNotes.map((note) => ({ ...note })));
       }
     } else {
       if (e.button === 2) {
@@ -969,7 +1048,7 @@ const PianoRoll = () => {
           selected: true,
         };
 
-        setNotes((prevNotes) => [...prevNotes, newNote]);
+        setNotes({ midi: [...notes, newNote], id: convexNotesID });
         setIsDragging(true);
         setDraggingType("resizeEnd"); // Start dragging the end to set the duration
         setDraggingNoteId(newNote.id);
@@ -978,9 +1057,7 @@ const PianoRoll = () => {
         setMouseDownPosition({ x: worldX, y: worldY });
       } else {
         // Deselect any selected notes
-        setNotes((prevNotes) =>
-          prevNotes.map((note) => ({ ...note, selected: false }))
-        );
+        setSelectedNotes([]);
         // Start selection box
         setIsSelecting(true);
         setSelectionBox({ x1: mouseX, y1: mouseY, x2: mouseX, y2: mouseY });
@@ -1032,25 +1109,26 @@ const PianoRoll = () => {
     // Change cursor when hovering over note edges
     let cursor = "default";
     let hoveringOverEdge = false;
-    notes.forEach((note) => {
-      const noteX = note.start * BEAT_WIDTH;
-      const noteWidth = note.duration * BEAT_WIDTH;
-      const noteY = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT;
-      const noteHeight = KEY_HEIGHT;
-      const resizeMargin = 5 / zoomX; // 5 pixels in world coordinates
+    if (notes)
+      notes.forEach((note) => {
+        const noteX = note.start * BEAT_WIDTH;
+        const noteWidth = note.duration * BEAT_WIDTH;
+        const noteY = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT;
+        const noteHeight = KEY_HEIGHT;
+        const resizeMargin = 5 / zoomX; // 5 pixels in world coordinates
 
-      if (
-        worldY * KEY_HEIGHT >= noteY &&
-        worldY * KEY_HEIGHT <= noteY + noteHeight &&
-        ((worldX * BEAT_WIDTH >= noteX - resizeMargin &&
-          worldX * BEAT_WIDTH <= noteX + resizeMargin) ||
-          (worldX * BEAT_WIDTH >= noteX + noteWidth - resizeMargin &&
-            worldX * BEAT_WIDTH <= noteX + noteWidth + resizeMargin))
-      ) {
-        cursor = "ew-resize";
-        hoveringOverEdge = true;
-      }
-    });
+        if (
+          worldY * KEY_HEIGHT >= noteY &&
+          worldY * KEY_HEIGHT <= noteY + noteHeight &&
+          ((worldX * BEAT_WIDTH >= noteX - resizeMargin &&
+            worldX * BEAT_WIDTH <= noteX + resizeMargin) ||
+            (worldX * BEAT_WIDTH >= noteX + noteWidth - resizeMargin &&
+              worldX * BEAT_WIDTH <= noteX + noteWidth + resizeMargin))
+        ) {
+          cursor = "ew-resize";
+          hoveringOverEdge = true;
+        }
+      });
 
     if (!hoveringOverEdge && !isDragging) {
       cursor = "default";
@@ -1067,8 +1145,8 @@ const PianoRoll = () => {
     const deltaY = worldY - initialMousePosition.y;
 
     if (draggingType === "move") {
-      setNotes((prevNotes) =>
-        prevNotes.map((note) => {
+      setTempDraggingNotes(
+        notes.map((note) => {
           if (!note.selected) return note;
 
           const initialNote = initialNotesState.find((n) => n.id === note.id);
@@ -1089,8 +1167,8 @@ const PianoRoll = () => {
       );
     } else {
       // Resizing only affects the specific note being dragged
-      setNotes((prevNotes) =>
-        prevNotes.map((note) => {
+      setTempDraggingNotes(
+        notes.map((note) => {
           if (note.id !== draggingNoteId) return note;
 
           const initialNote = initialNotesState.find((n) => n.id === note.id);
@@ -1134,6 +1212,17 @@ const PianoRoll = () => {
   };
 
   const handleMouseUp = (e) => {
+    if (tempDraggingNotes) {
+      const ids = tempDraggingNotes.map((note) => note.id);
+      setNotes({
+        midi: [
+          ...tempDraggingNotes,
+          ...notes.filter((note) => !ids.includes(note.id)),
+        ],
+        id: convexNotesID,
+      });
+      setTempDraggingNotes(null);
+    }
     if (e.button === 1 && isMiddleMouseDragging) {
       setIsMiddleMouseDragging(false);
       return;
@@ -1158,8 +1247,8 @@ const PianoRoll = () => {
       const pitchMax = Math.ceil(NUM_MIDI_KEYS - 1 - worldYMin);
 
       // Select notes within the selection rectangle
-      setNotes((prevNotes) =>
-        prevNotes.map((note) => {
+      const toAdd = notes
+        .map((note) => {
           const noteStart = note.start;
           const noteEnd = note.start + note.duration;
           const notePitch = note.pitch;
@@ -1170,12 +1259,14 @@ const PianoRoll = () => {
             notePitch >= pitchMin &&
             notePitch <= pitchMax
           ) {
-            return { ...note, selected: true };
+            return note.id;
           } else {
-            return note;
+            return false;
           }
         })
-      );
+        .filter((id) => id !== false);
+
+      setSelectedNotes([...selectedNotes, ...toAdd]);
     }
 
     if (isDragging) {
@@ -1219,6 +1310,9 @@ const PianoRoll = () => {
     isMiddleMouseDragging,
     lastMiddleMousePosition,
     defaultNoteDuration,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
   ]);
 
   // Event handlers for the time ruler
@@ -1289,7 +1383,15 @@ const PianoRoll = () => {
       );
       window.removeEventListener("mouseup", handleTimeRulerMouseUp);
     };
-  }, [isDraggingPlayback, scrollX, zoomX, playbackPosition]);
+  }, [
+    isDraggingPlayback,
+    scrollX,
+    zoomX,
+    playbackPosition,
+    handleTimeRulerMouseDown,
+    handleTimeRulerMouseMove,
+    handleTimeRulerMouseUp,
+  ]);
 
   const options = [
     { value: () => console.log("hello"), label: "Console Hello" },
@@ -1444,7 +1546,7 @@ const PianoRoll = () => {
               backgroundColor: "rgba(0, 0, 0, 0.5)",
               zIndex: 1,
             }}
-            onClick={() => setChatPageOpen(false)}
+            onClick={() => (isChatLoading ? null : setChatPageOpen(false))}
           />
           <div
             style={{
@@ -1466,15 +1568,25 @@ const PianoRoll = () => {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && e.ctrlKey) {
                   e.preventDefault();
+                  setIsChatLoading(true);
                   const time_based = MIDIToTimeBased(
-                    notes.filter((note) => note.selected),
+                    notes.filter((note) => selectedNotes.includes(note.id)),
                     120
                   );
-                  console.log(time_based);
-                  //MidiJsonEdit(time_based, chatBoxBar.current.value);
-                  console.log("Sent to server");
-                  console.log(chatBoxBar.current.value);
-                  setChatPageOpen(false);
+                  callModAPI({
+                    music: time_based,
+                    request: chatBoxBar.current.value,
+                  }).then((res) => {
+                    setNotes({
+                      midi: [
+                        ...notes,
+                        ...TimeBasedToMIDI(JSON.parse(res), 120),
+                      ],
+                      id: convexNotesID,
+                    });
+                    setIsChatLoading(false);
+                    setChatPageOpen(false);
+                  });
                 }
               }}
               style={{
@@ -1491,6 +1603,7 @@ const PianoRoll = () => {
                 position: "absolute",
                 resize: "none",
               }}
+              disabled={isChatLoading}
             />
             <div
               style={{
@@ -1509,7 +1622,11 @@ const PianoRoll = () => {
             >
               <b>Get Suggestions</b>
               <br />
-              <i>Press Ctrl-Enter to submit!</i>
+              {isChatLoading ? (
+                <i>Waiting for a marvelous response!</i>
+              ) : (
+                <i>Press Ctrl-Enter to submit!</i>
+              )}
               <br />
               <i>
                 Note, AI suggestions may potentially give unexpected responses.

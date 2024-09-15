@@ -1,6 +1,5 @@
 import background from "../assets/background.jpg";
 import { SignInButton } from "@clerk/clerk-react";
-
 function SignIn() {
   return (
     <div
@@ -11,6 +10,7 @@ function SignIn() {
         height: "100vh",
         width: "100vw",
         backgroundImage: `url(${background})`,
+        backgroundSize: `auto`,
       }}
     >
       <div

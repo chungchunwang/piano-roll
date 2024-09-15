@@ -1,7 +1,112 @@
 /* eslint-disable react/prop-types */
+import { useMutation, useQuery } from "convex/react";
 import CustomSquircle from "./CustomSquircle";
+// import HandleFileUpload from "./playback-p";
+import { api } from "../../convex/_generated/api";
+import { parseMidiFile } from "./parse-midi";
+import * as Tone from "tone";
+import { Midi } from "@tonejs/midi";
 
 export default function Footer({ tempo, setTempo, volume, setVolume }) {
+  const setNotes = useMutation(api.tasks.setMIDI);
+  const convexNotesID = useQuery(api.tasks.getMIDIID, { file: "example" });
+  const notes = useQuery(api.tasks.getMIDI, { id: convexNotesID });
+
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+
+    if (file && file.name.endsWith(".mid")) {
+      try {
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+          const arrayBuffer = e.target.result;
+
+          // Convert ArrayBuffer to MIDI data (JSON format)
+          const midiJson = await parseMidiFile(arrayBuffer);
+          setNotes({
+            id: convexNotesID,
+            midi: [
+              ...midiJson.map((m) => {
+                return {
+                  duration: m.duration,
+                  id: Math.floor(Math.random() * 10000000),
+                  pitch: Tone.Frequency(m.name).toMidi(),
+                  start: m.start,
+                  selected: false,
+                };
+              }),
+            ],
+          });
+        };
+
+        reader.readAsArrayBuffer(file);
+      } catch (err) {
+        console.log(err);
+      }
+    } else {
+      console.log("Please upload a valid .midi file.");
+    }
+  }
+
+  function handleExport() {
+    const midi = new Midi();
+    const track = midi.addTrack();
+    notes.map((data) => {
+      if (data.pitch) {
+        track.addNote({
+          midi: data.pitch,
+          time: data.start,
+          duration: data.duration,
+        });
+      } else {
+        track.addNote({
+          name: data.name,
+          time: data.start,
+          duration: data.duration,
+        });
+      }
+    });
+
+    const blob = new Blob([midi.toArray()], { type: "audio/midi" });
+
+    // Create a URL for the Blob
+    const url = window.URL.createObjectURL(blob);
+
+    // Create a link element
+    const a = document.createElement("a");
+
+    // Set the href of the link to the Blob URL
+    a.href = url;
+
+    // Set the filename for the download
+    a.download = "output.mid";
+
+    // Programmatically click the link to trigger the download
+    a.click();
+
+    // Release the Blob URL
+    window.URL.revokeObjectURL(url);
+
+    //   fs.writeFileSync("output.mid", new Buffer(midi.toArray()));
+  }
+
+  const playAutoPiano = () => {
+    const now = Tone.now();
+
+    // Trigger C4, E4, G4 to simulate a chord
+    let synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    notes.map((note) => {
+      synth.triggerAttackRelease(
+        Tone.Frequency(note.pitch, "midi").toNote(),
+        note.duration,
+        now + note.start
+      );
+    });
+    // synth.triggerAttackRelease("C4", "8n", now);
+    // synth.triggerAttackRelease("E4", "8n", now + 0.5);
+    // synth.triggerAttackRelease("G4", "8n", now + 1.0);
+  };
   return (
     <div className="flex items-center justify-between bg-gray-700 p-4 text-white">
       {/* Left Controls */}
@@ -12,7 +117,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           button
           altText="Play"
           label="Play"
-          onClick={() => console.log("Play button clicked")}
+          onClick={playAutoPiano}
           customStyle={{
             background: "#60A5FA",
             border: "none",
@@ -92,8 +197,10 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           iconSrc="/assets/icons/export.png"
           altText="Export"
           label="Export"
-          onClick={() => console.log("Export button clicked")}
+          onClick={() => handleExport()}
         />
+
+        <input type="file" accept=".mid" onChange={handleFileUpload} />
       </div>
     </div>
   );

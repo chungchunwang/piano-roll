@@ -66,7 +66,7 @@ const Header = () => {
       </div>
 
       {/* Right controls */}
-      <div className="flex space-x-4 flex-1 justify-end">
+      <div className="flex items-center space-x-4 flex-1 justify-end">
         <img
           src="/assets/icons/share-icon.png"
           alt="Share"
@@ -83,7 +83,13 @@ const Header = () => {
           onClick={handleInfoClick}
           className="cursor-pointer"
         />
-        <div className="isIn">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <UserButton />
         </div>
       </div>
