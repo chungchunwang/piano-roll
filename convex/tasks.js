@@ -16,7 +16,6 @@ export const getMIDI = query({
   args: { id: v.id("files") },
   handler: async (ctx, args) => {
     const res = await ctx.db.get(args.id);
-    console.log(res);
     if (res == undefined) return [];
     if (res.midi == undefined) {
       return [];
@@ -28,26 +27,29 @@ export const getMIDI = query({
 export const setMIDI = mutation({
   args: { id: v.id("files"), midi: v.any() },
   handler: async (ctx, args) => {
-    console.log(args.midi);
     return await ctx.db.patch(args.id, {
       midi: args.midi,
     });
   },
 });
 
-// export const getCursors = query({
-//   args: { file: v.string },
-//   handler: async (ctx, args) => {
-//     return await ctx.db.query(`${args.file}_cursors`).collect();
-//   },
-// });
+export const getCursors = query({
+  args: { id: v.id("files") },
+  handler: async (ctx, args) => {
+    const res = await ctx.db.get(args.id);
+    if (res == undefined) return [];
+    if (res.cursors == undefined) {
+      return [];
+    }
+    return res.cursors;
+  },
+});
 
-// export const setCursor = mutation({
-//   args: { file: v.string, x: v.number, y: v.number },
-//   handler: async (ctx, args) => {
-//     return await ctx.db.insert(`${args.file}_cursors`, {
-//       x: args.x,
-//       y: args.y,
-//     });
-//   },
-// });
+export const setCursors = mutation({
+  args: { id: v.id("files"), cursors: v.any() },
+  handler: async (ctx, args) => {
+    return await ctx.db.patch(args.id, {
+      cursors: args.cursors,
+    });
+  },
+});

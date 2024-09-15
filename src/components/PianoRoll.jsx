@@ -7,7 +7,6 @@ import Select from "react-select";
 import { useState, useRef, useEffect } from "react";
 import { FaBoltLightning } from "react-icons/fa6";
 import MIDIToTimeBased from "./MIDIToTimeBased";
-import MidiJsonEdit from "./midi-json-edit";
 
 import { useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -113,11 +112,12 @@ const PianoRoll = () => {
   const notes = useQuery(api.tasks.getMIDI, { id: convexNotesID });
   const setNotes = useMutation(api.tasks.setMIDI);
 
+  const cursors = useQuery(api.tasks.getCursors, { id: convexNotesID });
+  const setCursors = useMutation(api.tasks.setCursors);
+
   const [selectedNotes, setSelectedNotes] = useState([]);
 
   const [tempDraggingNotes, setTempDraggingNotes] = useState([]);
-
-  const [tempDraggingNotesID, setTempDraggingNotesID] = useState([]);
 
   // State for mouse interaction
   const [isDragging, setIsDragging] = useState(false);
@@ -764,32 +764,35 @@ const PianoRoll = () => {
       ctx.closePath();
       ctx.fill();
     }
+    if (cursors != null)
+      for (const [key, value] of Object.entries(cursors)) {
+        const bookmarkCursorX = value[0] * BEAT_WIDTH * zoomX - scrollX;
+        const bookmarkCursorY = value[1] * KEY_HEIGHT * zoomY - scrollY;
 
-    const bookmarkCursorX =
-      bookmarkCursorPosition.x * BEAT_WIDTH * zoomX - scrollX;
-    const bookmarkCursorY =
-      bookmarkCursorPosition.y * KEY_HEIGHT * zoomY - scrollY;
-
-    if (
-      bookmarkCursorX >= 0 &&
-      bookmarkCursorX <= gridCanvasWidth &&
-      bookmarkCursorY >= 0 &&
-      bookmarkCursorY <= gridCanvasHeight
-    ) {
-      ctx.strokeStyle = "purple";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bookmarkCursorX, bookmarkCursorY);
-      ctx.lineTo(bookmarkCursorX, bookmarkCursorY + KEY_HEIGHT * zoomY);
-      ctx.stroke();
-      ctx.fillStyle = "purple";
-      ctx.beginPath();
-      ctx.moveTo(bookmarkCursorX - 10, bookmarkCursorY - 10);
-      ctx.lineTo(bookmarkCursorX - 10, bookmarkCursorY - 5);
-      ctx.lineTo(bookmarkCursorX - 5, bookmarkCursorY - 5);
-      ctx.closePath();
-      ctx.fill();
-    }
+        if (
+          bookmarkCursorX >= 0 &&
+          bookmarkCursorX <= gridCanvasWidth &&
+          bookmarkCursorY >= 0 &&
+          bookmarkCursorY <= gridCanvasHeight
+        ) {
+          ctx.fillStyle = "white";
+          ctx.font = "10px Arial";
+          ctx.fillText(key, bookmarkCursorX + 15, bookmarkCursorY - 5);
+          ctx.strokeStyle = "purple";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(bookmarkCursorX, bookmarkCursorY);
+          ctx.lineTo(bookmarkCursorX, bookmarkCursorY + KEY_HEIGHT * zoomY);
+          ctx.stroke();
+          ctx.fillStyle = "purple";
+          ctx.beginPath();
+          ctx.moveTo(bookmarkCursorX + 10, bookmarkCursorY - 10);
+          ctx.lineTo(bookmarkCursorX + 10, bookmarkCursorY - 5);
+          ctx.lineTo(bookmarkCursorX + 5, bookmarkCursorY - 5);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
 
     // Draw MIDI notes
     const ids = tempDraggingNotes
@@ -946,6 +949,10 @@ const PianoRoll = () => {
     const closestX = Math.round(worldX * subdivision) / subdivision;
     const closestY = Math.round(worldY);
     setBookmarkCursorPosition({ x: closestX, y: closestY });
+    setCursors({
+      id: convexNotesID,
+      cursors: { [user.fullName]: [closestX, closestY] },
+    });
 
     // Check if clicked on an existing note
     let clickedNote = null;
@@ -955,8 +962,6 @@ const PianoRoll = () => {
         const noteY = (NUM_MIDI_KEYS - note.pitch - 1) * KEY_HEIGHT;
         const noteWidth = note.duration * BEAT_WIDTH;
         const noteHeight = KEY_HEIGHT;
-        console.log(noteX, noteY, noteWidth, noteHeight);
-
         if (
           worldX * BEAT_WIDTH >= noteX &&
           worldX * BEAT_WIDTH <= noteX + noteWidth &&
@@ -966,7 +971,6 @@ const PianoRoll = () => {
           clickedNote = note;
         }
       });
-
     if (clickedNote) {
       if (e.button === 2) {
         // Right-click to delete the note
@@ -976,7 +980,6 @@ const PianoRoll = () => {
         });
         return;
       }
-
       if (isShiftPressed) {
         // Shift-click to toggle selection
         if (selectedNotes.some((id) => id === clickedNote.id)) {
@@ -985,13 +988,11 @@ const PianoRoll = () => {
           setSelectedNotes([...selectedNotes, clickedNote.id]);
         }
       } else {
-        if (clickedNote.selected) {
+        if (selectedNotes.includes(clickedNote.id)) {
           // Note is already selected; do not change selection
         } else {
-          // Select the clicked note and deselect others
-          if (!selectedNotes.includes(clickedNote.id)) {
-            setSelectedNotes([...selectedNotes, clickedNote.id]);
-          }
+          console.log("Setting selected notes");
+          setSelectedNotes([...selectedNotes, clickedNote.id]);
         }
       }
 

@@ -10,6 +10,7 @@ function SignIn() {
         height: "100vh",
         width: "100vw",
         backgroundImage: `url(${background})`,
+        backgroundSize: `auto`,
       }}
     >
       <div
