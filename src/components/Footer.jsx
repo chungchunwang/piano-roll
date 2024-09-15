@@ -6,11 +6,16 @@ import { api } from "../../convex/_generated/api";
 import { parseMidiFile } from "./parse-midi";
 import * as Tone from "tone";
 import { Midi } from "@tonejs/midi";
+import ChatbotModal from "./chatbot-modal";
+import { useState } from "react";
+import InstrumentsDropdown from "./instrument-modal";
 
 export default function Footer({ tempo, setTempo, volume, setVolume }) {
   const setNotes = useMutation(api.tasks.setMIDI);
   const convexNotesID = useQuery(api.tasks.getMIDIID, { file: "example" });
   const notes = useQuery(api.tasks.getMIDI, { id: convexNotesID });
+
+  const [inst, setInst] = useState("0");
 
   function handleFileUpload(event) {
     const file = event.target.files[0];
@@ -95,7 +100,24 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
     const now = Tone.now();
 
     // Trigger C4, E4, G4 to simulate a chord
-    let synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    let synth;
+    switch (inst) {
+      case "0":
+        synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        break;
+      case "1":
+        synth = new Tone.AMSynth().toDestination();
+        break;
+      case "2":
+        synth = new Tone.DuoSynth().toDestination();
+        break;
+      case "3":
+        synth = new Tone.FMSynth().toDestination();
+        break;
+      default:
+        synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        break;
+    }
     notes.map((note) => {
       synth.triggerAttackRelease(
         Tone.Frequency(note.pitch, "midi").toNote(),
@@ -131,6 +153,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           label="Sound"
           onClick={() => console.log("Sound button clicked")}
         />
+        <InstrumentsDropdown setInst={setInst}/>
         <CustomSquircle
           iconSrc="/assets/icons/property.png"
           property
@@ -139,6 +162,7 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           label="Property"
           onClick={() => console.log("Property button clicked")}
         />
+        {/* <ChatbotModal /> */}
       </div>
 
       <div className="flex items-center space-x-6">
@@ -200,7 +224,12 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
             label="Export"
             onClick={() => handleExport()}
           />
-          <input type="file" accept=".mid" onChange={handleFileUpload} className="w-[500px] h-[500px] invisible absolute"/>
+          <input
+            type="file"
+            accept=".mid"
+            onChange={handleFileUpload}
+            className="w-[500px] h-[500px] invisible absolute"
+          />
         </div>
       </div>
     </div>
