@@ -1,5 +1,6 @@
 import { SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 import ShortcutModal from "./shortcut-modal";
+import FilterModal from "./filterModal";
 
 const Header = () => {
   // Event handlers for each icon
@@ -55,14 +56,7 @@ const Header = () => {
           onClick={handleForwardClick}
           className="cursor-pointer"
         />
-        <img
-          src="/assets/icons/filter-icon.png"
-          alt="Settings"
-          width={30}
-          height={30}
-          onClick={handleSettingsClick}
-          className="cursor-pointer"
-        />
+        <FilterModal />
         <ShortcutModal />
       </div>
 
