@@ -94,6 +94,12 @@ export default function Footer({ tempo, setTempo, volume, setVolume }) {
           label="Export"
           onClick={() => console.log("Export button clicked")}
         />
+        <CustomSquircle
+          iconSrc="/assets/icons/export.png"
+          altText="Import"
+          label="Import"
+          onClick={() => console.log("Export button clicked")}
+        />
       </div>
     </div>
   );

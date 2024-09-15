@@ -1,6 +1,5 @@
 import background from "../assets/background.jpg";
 import { SignInButton } from "@clerk/clerk-react";
-
 function SignIn() {
   return (
     <div
