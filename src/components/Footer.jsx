@@ -98,7 +98,23 @@ export default function Footer({
     //   fs.writeFileSync("output.mid", new Buffer(midi.toArray()));
   }
 
-  
+  const playAutoPiano = () => {
+    const now = Tone.now();
+
+    // Trigger C4, E4, G4 to simulate a chord
+    let synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    notes.map((note) => {
+      synth.triggerAttackRelease(
+        Tone.Frequency(note.pitch, "midi").toNote(),
+        note.duration,
+        now + note.start
+      );
+    });
+    // synth.triggerAttackRelease("C4", "8n", now);
+    // synth.triggerAttackRelease("E4", "8n", now + 0.5);
+    // synth.triggerAttackRelease("G4", "8n", now + 1.0);
+  };
+
   return (
     <div className="flex items-center justify-between bg-gray-700 p-4 text-white">
       {/* Left Controls */}
@@ -110,6 +126,18 @@ export default function Footer({
           altText={playback ? "Play" : "Pause"}
           label={playback ? "Play" : "Pause"}
           onClick={() => setPlayback((prev) => !prev)}
+          customStyle={{
+            background: "#60A5FA",
+            border: "none",
+          }}
+        />
+        <CustomSquircle
+          iconSrc="/assets/icons/play.png"
+          play
+          button
+          altText={"Play"}
+          label={"One Shot Play"}
+          onClick={() => playAutoPiano()}
           customStyle={{
             background: "#60A5FA",
             border: "none",
