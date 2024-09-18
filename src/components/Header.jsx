@@ -29,7 +29,7 @@ const Header = () => {
   };
 
   return (
-    <div className="relative w-full h-16 bg-[#666666] border-b border-neutral-100 flex items-center justify-between px-4">
+    <div className="relative w-full h-16 bg-[#43618d] border-b border-neutral-100 flex items-center justify-between px-4">
       {/* Left controls */}
       <div className="flex space-x-4 flex-1">
         <img

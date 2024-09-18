@@ -1412,7 +1412,7 @@ const PianoRoll = (props) => {
       style={{
         position: "relative",
         overflow: "hidden",
-        backgroundColor: "#856436",
+        backgroundColor: "rgb(44, 52, 65)",
       }}
     >
       <div
