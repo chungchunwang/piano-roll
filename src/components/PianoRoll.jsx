@@ -1051,8 +1051,10 @@ const PianoRoll = (props) => {
           pitch: pitch,
           selected: true,
         };
-
-        setNotes({ midi: [...notes, newNote], id: convexNotesID });
+        setTempDraggingNotes([...notes, newNote]);
+        setNotes({ midi: [...notes, newNote], id: convexNotesID }).then(() => {
+          setTempDraggingNotes(null);
+        });
         setIsDragging(true);
         setDraggingType("resizeEnd"); // Start dragging the end to set the duration
         setDraggingNoteId(newNote.id);
@@ -1224,8 +1226,9 @@ const PianoRoll = (props) => {
           ...notes.filter((note) => !ids.includes(note.id)),
         ],
         id: convexNotesID,
+      }).then(() => {
+        setTempDraggingNotes(null);
       });
-      setTempDraggingNotes(null);
     }
     if (e.button === 1 && isMiddleMouseDragging) {
       setIsMiddleMouseDragging(false);
